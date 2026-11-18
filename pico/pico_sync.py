@@ -1,7 +1,7 @@
 """Pico W background schedule synchronizer.
 
-Copy this file to the Pico. Requires MicroPython on Pico W and urequests.py
-(or a compatible requests module) on the device filesystem.
+Uses native MicroPython usocket for robust, dependency-free HTTP communication.
+No external urequests library required!
 """
 import time
 import network
@@ -9,16 +9,16 @@ import _thread
 import os
 
 try:
-    import urequests as requests
+    import usocket as socket
 except ImportError:
-    import requests
+    import socket
 
 try:
     import ujson as json
 except ImportError:
     import json
 
-# Configuration defaults (can be set directly or via configure())
+# Configuration defaults (configured dynamically by main.py)
 WIFI_SSID = "PT SOLAR"
 WIFI_PASSWORD = "tcf@praful"
 API_BASE = "http://66.116.251.98:8012/api"
@@ -45,6 +45,75 @@ def configure(api_base=None, api_key=None, device_id=None, poll_seconds=None, wi
         WIFI_SSID = wifi_ssid
     if wifi_password:
         WIFI_PASSWORD = wifi_password
+
+
+def _parse_url(url):
+    if url.startswith("http://"):
+        url = url[7:]
+    elif url.startswith("https://"):
+        url = url[8:]
+    host_port, _, path = url.partition("/")
+    path = "/" + path
+    if ":" in host_port:
+        host, port_str = host_port.split(":", 1)
+        port = int(port_str)
+    else:
+        port = 80
+    return host, port, path
+
+
+def _http_request(method, url, payload=None):
+    """Robust, dependency-free HTTP/1.0 client using native sockets."""
+    host, port, path = _parse_url(url)
+    body = json.dumps(payload) if payload is not None else None
+
+    ai = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+    s = socket.socket(ai[0][0], ai[0][1], ai[0][2])
+    s.settimeout(10)
+    try:
+        s.connect(ai[0][-1])
+
+        headers = [
+            "{} {} HTTP/1.0".format(method, path),
+            "Host: {}:{}".format(host, port),
+            "User-Agent: PicoW",
+            "X-API-Key: {}".format(DEVICE_API_KEY),
+            "Connection: close"
+        ]
+        if body is not None:
+            headers.append("Content-Type: application/json")
+            headers.append("Content-Length: {}".format(len(body)))
+
+        request_data = "\r\n".join(headers) + "\r\n\r\n"
+        if body is not None:
+            request_data += body
+
+        s.sendall(request_data.encode("utf-8"))
+
+        chunks = []
+        while True:
+            chunk = s.recv(1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+
+        raw = b"".join(chunks).decode("utf-8", "ignore")
+        if not raw:
+            raise Exception("Empty response from server")
+
+        header_part, _, body_part = raw.partition("\r\n\r\n")
+        status_line = header_part.split("\r\n")[0]
+        parts = status_line.split()
+        if len(parts) < 2:
+            raise Exception("Malformed status line: {}".format(status_line))
+
+        status_code = int(parts[1])
+        if status_code not in (200, 201):
+            raise Exception("HTTP status {}: {}".format(status_code, body_part[:80]))
+
+        return body_part
+    finally:
+        s.close()
 
 
 def _read_local_version():
@@ -138,28 +207,12 @@ def _recover_schedule_file():
         pass
 
 
-def _get(url):
-    response = requests.get(url, headers={"X-API-Key": DEVICE_API_KEY})
+def _file_exists(path):
     try:
-        if response.status_code != 200:
-            raise Exception("HTTP status: {}".format(response.status_code))
-        return response.text
-    finally:
-        response.close()
-
-
-def _post(url, payload):
-    data = json.dumps(payload)
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": DEVICE_API_KEY,
-    }
-    response = requests.post(url, data=data, headers=headers)
-    try:
-        if response.status_code not in (200, 201):
-            raise Exception("HTTP status: {}".format(response.status_code))
-    finally:
-        response.close()
+        os.stat(path)
+        return True
+    except OSError:
+        return False
 
 
 def sync_once(wlan):
@@ -169,31 +222,23 @@ def sync_once(wlan):
     if not wlan.isconnected():
         return False
 
-    version_data = _get(API_BASE.rstrip('/') + "/device/version/")
+    version_data = _http_request("GET", API_BASE.rstrip('/') + "/device/version/")
     server_version = int(json.loads(version_data)["version"])
     local_version = _read_local_version()
 
     if server_version != local_version or not _file_exists("schedule.csv"):
-        csv_text = _get(API_BASE.rstrip('/') + "/device/schedule.csv")
+        csv_text = _http_request("GET", API_BASE.rstrip('/') + "/device/schedule.csv")
         _replace_schedule(csv_text)
         _write_local_version(server_version)
         with _sync_lock:
             _schedule_update_pending = True
         print("Schedule updated from server. Version:", server_version)
 
-    _post(API_BASE.rstrip('/') + "/device/heartbeat/", {
+    _http_request("POST", API_BASE.rstrip('/') + "/device/heartbeat/", {
         "device_id": DEVICE_ID,
         "version": server_version
     })
     return True
-
-
-def _file_exists(path):
-    try:
-        os.stat(path)
-        return True
-    except OSError:
-        return False
 
 
 def _worker(wlan):

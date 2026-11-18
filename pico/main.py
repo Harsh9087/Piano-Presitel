@@ -220,6 +220,7 @@ def network_worker():
                     ntp_sync_pending = True
                     last_ntp_sync = time.ticks_ms()
                     print("NTP synchronization successful; DS3231 update pending.")
+                    time.sleep(1)
                 except Exception as exc:
                     print("NTP error; retaining DS3231 time:", exc)
 
@@ -230,9 +231,9 @@ def network_worker():
                     or time.ticks_diff(now, last_schedule_sync) >= (SYNC_INTERVAL * 1000)
                 )
                 if schedule_due:
+                    last_schedule_sync = time.ticks_ms()
                     try:
                         pico_sync.sync_once(wlan)
-                        last_schedule_sync = time.ticks_ms()
                     except Exception as exc:
                         print("Schedule sync error:", exc)
 
