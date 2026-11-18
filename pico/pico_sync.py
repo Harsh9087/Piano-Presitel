@@ -69,8 +69,9 @@ def _http_request(method, url, payload=None):
 
     ai = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
     s = socket.socket(ai[0][0], ai[0][1], ai[0][2])
-    s.settimeout(10)
+    s.settimeout(15)
     try:
+        print("Sync: Connecting to {}:{}...".format(host, port))
         s.connect(ai[0][-1])
 
         headers = [

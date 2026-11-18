@@ -171,6 +171,11 @@ wifi_configured = bool(
 wlan = network.WLAN(network.STA_IF)
 if wifi_configured:
     wlan.active(True)
+    try:
+        # Disable Wi-Fi power saving on CYW43 to prevent sleep packet drops and ETIMEDOUT
+        wlan.config(pm=0xa11140)
+    except Exception:
+        pass
 else:
     print("Wi-Fi credentials not configured; offline mode only.")
 
@@ -209,7 +214,9 @@ def network_worker():
                     time.sleep(15)
                     continue
 
-            connection_attempt_started = False
+            if connection_attempt_started:
+                connection_attempt_started = False
+                print("Wi-Fi connected! Network details:", wlan.ifconfig())
 
             now = time.ticks_ms()
 
@@ -220,7 +227,7 @@ def network_worker():
                     ntp_sync_pending = True
                     last_ntp_sync = time.ticks_ms()
                     print("NTP synchronization successful; DS3231 update pending.")
-                    time.sleep(1)
+                    time.sleep(2)
                 except Exception as exc:
                     print("NTP error; retaining DS3231 time:", exc)
 
@@ -241,7 +248,11 @@ def network_worker():
 
         except Exception as exc:
             print("Network worker error:", exc)
-            connection_attempt_started = False
+            if connection_attempt_started:
+                connection_attempt_started = False
+                print("Wi-Fi connected! Network details:", wlan.ifconfig())
+            else:
+                connection_attempt_started = False
             time.sleep(10)
 
 
