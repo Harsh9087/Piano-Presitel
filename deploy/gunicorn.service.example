@@ -1,0 +1,15 @@
+[Unit]
+Description=Relay Schedule Django API
+After=network.target
+
+[Service]
+User=relayapp
+Group=www-data
+WorkingDirectory=/opt/relay-scheduler/backend
+EnvironmentFile=/opt/relay-scheduler/backend/.env
+ExecStart=/opt/relay-scheduler/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8012 --workers 2 --timeout 30
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
