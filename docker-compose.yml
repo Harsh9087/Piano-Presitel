@@ -1,0 +1,15 @@
+services:
+  relay-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: relay-scheduler
+    restart: unless-stopped
+    ports:
+      - "8012:8012"
+    env_file:
+      - ./backend/.env
+    environment:
+      - SQLITE_DB_PATH=/app/data/db.sqlite3
+    volumes:
+      - ./data:/app/data

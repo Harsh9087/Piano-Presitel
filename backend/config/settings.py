@@ -40,7 +40,14 @@ TEMPLATES = [{
 }]
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
-DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3', 'OPTIONS': {'timeout': 20}}}
+db_path = os.environ.get('SQLITE_DB_PATH')
+if db_path:
+    db_file = Path(db_path)
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+else:
+    db_file = BASE_DIR / 'db.sqlite3'
+
+DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': db_file, 'OPTIONS': {'timeout': 20}}}
 AUTH_PASSWORD_VALIDATORS = []
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'

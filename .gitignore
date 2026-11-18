@@ -8,8 +8,10 @@ venv/
 ENV/
 env/
 backend/.venv/
+# SQLite Database & Data Volume
 *.sqlite3
 db.sqlite3
+data/
 
 # Environment & Secrets
 .env

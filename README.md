@@ -45,7 +45,37 @@ The Vite dev server needs a proxy to the backend for local development; add this
 server: { proxy: { '/api': 'http://127.0.0.1:8000' } }
 ```
 
-## BigRock VPS deployment (manual, isolated)
+## Docker Deployment (Recommended)
+
+To deploy with Docker on your VPS without needing to install Python 3.12, Node.js, or Nginx on the host:
+
+1. Allow port `8012` on the VPS:
+   ```bash
+   sudo firewall-cmd --permanent --add-port=8012/tcp && sudo firewall-cmd --reload
+   # or with ufw: sudo ufw allow 8012/tcp
+   ```
+2. Clone this repo:
+   ```bash
+   git clone https://github.com/Harsh9087/Piano-Presitel.git /opt/relay-scheduler
+   cd /opt/relay-scheduler
+   ```
+3. Create your `.env` configuration:
+   ```bash
+   cp backend/.env.example backend/.env
+   # Edit backend/.env to set your API keys
+   ```
+4. Start the container:
+   ```bash
+   docker compose up -d --build
+   ```
+5. View logs or check status:
+   ```bash
+   docker compose logs -f
+   docker compose ps
+   ```
+The dashboard is accessible at `http://<VPS_IP>:8012` and Pico W endpoints at `http://<VPS_IP>:8012/api/`. Data is automatically persisted in the `./data` directory.
+
+## Manual VPS deployment (bare-metal)
 Do not run this until you have confirmed the chosen domain and checked that port 8012 is unused. These steps create a new app directory/service and a separate Nginx server block; they do not require Docker or changes to existing application containers.
 
 1. Check the server OS, current services, ports and Nginx configuration before changing anything:

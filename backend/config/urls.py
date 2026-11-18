@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from django.contrib import admin
 from django.urls import path, include, re_path
@@ -5,7 +6,8 @@ from django.views.static import serve
 from django.http import HttpResponse, FileResponse
 from django.conf import settings
 
-FRONTEND_DIST = settings.BASE_DIR.parent / 'frontend' / 'dist'
+frontend_env = os.environ.get('FRONTEND_DIST_DIR')
+FRONTEND_DIST = Path(frontend_env) if frontend_env else settings.BASE_DIR.parent / 'frontend' / 'dist'
 
 def spa_view(request, path=""):
     target_file = FRONTEND_DIST / path
